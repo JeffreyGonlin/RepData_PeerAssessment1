@@ -1,15 +1,24 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-Author: Jeffrey Gonlin
-output: 
+title: "PA1_template_finalversion"
+author: "Jeffrey Gonlin"
+date: "May 31, 2016"
+output:
   html_document:
-    keep_md: true
+    fig_caption: yes
+    keep_md: yes
+  pdf_document: default
+  word_document: default
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 ## Loading and preprocessing the data
+
 Several packages were loaded (plyr, dplyr, ggplot2, grid, knitr, lubridate, markdown, rmarkdown, utils and tidyr) however in the interest of tidy output echo has been set to FALSE and results to "hide".
-```{r, echo=FALSE, results="hide"}
+
+```{r packages, echo=FALSE, results="hide", warning="hide"}
 library(plyr)
 library(dplyr)
 library(ggplot2)
@@ -27,30 +36,35 @@ The data is available on the rdpeng github site as well.
 Site source and fileUrl for the data is:
 fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
 
-```{r, echo=TRUE}
+```{r loadData}
+setwd("~/R/Reproducible Research/RepResearchAssignment1")
 activity <- read.csv("activity.csv")
 dateDownloaded <- now()
 activity <- tbl_df(activity)
+
 # convert column "date" to date format; use that to summarize.
 activity$date <- as.Date(activity$date)
 ```
 
 ## What is mean total number of steps taken per day?
-We can group the data by date, sum the number of steps per day and then calculate daily statistics like the mean and median.
+We can group the data by date, sum the number of steps per day and then calculate daily statistics like the mean and median.  
+First sum the number of steps taken each day:
 
-```{r stepsDayMeanMedian, echo=TRUE}
+```{r stepsDayTotals}
 group_by(activity, date) %>% summarize(sumSteps = sum(steps)) -> stepsDay
+stepsDay
+```
+```{r steps_per_day_MeanMedian}
 steps_per_Day_Mean = mean(stepsDay$sumSteps, na.rm = TRUE)
 steps_per_Day_Median = median(stepsDay$sumSteps, na.rm = TRUE)
-
 ```
 
-The mean equals `r steps_per_Day_Mean` and the median equals `r steps_per_Day_Median`. 
+The mean number of steps per day equals `r steps_per_Day_Mean` and the median equals `r steps_per_Day_Median`.
 
 The histogram below shows the almost identical mean and median in green and black dashed lines, respectively, along with the dispersion around the mean.
 
-```{r histogram1, echo=TRUE}
-hist(stepsDay$sumSteps, breaks = 10, xlab="Total Number of Steps per Day", 
+```{r histogram_stepsDay}
+histogram_stepsDay <- hist(stepsDay$sumSteps, breaks = 10, xlab="Total Number of Steps per Day", 
      main="Histogram of the Total Number of Steps Taken per Day",
      sub="Lines: Mean is Green; Median is Black Dashed")
 abline(v = steps_per_Day_Mean, col = "green", lwd =5)
@@ -58,39 +72,51 @@ abline(v = steps_per_Day_Median, col = "black", lwd = 1, lty = 2)
 ```
 
 ## What is the average daily activity pattern?
+
 To see the daily activity pattern we can average across all days the number of steps per 5 minute interval.  This information can then be plotted as a time series, producing a visual representation of an average day's stepwork in 5 minute tact.
 
-```{r TS1_maxinterval, echo=TRUE}
+```{r fiveMinAvg}
 activity %>% group_by(interval) %>% 
     summarize(intervalAvg=mean(by=steps, na.rm=TRUE)) -> fiveMinAvg 
+```
+```{r maxStepsInterval}
+max5MinuteAvgIndex <- which.max(fiveMinAvg$intervalAvg)
+maxStepsInterval <- fiveMinAvg$interval[[max5MinuteAvgIndex]]
+
+# Max number of steps in the 5 minute interval starting at:
+maxStepsInterval 
+```
+```{r plot_fiveMinAvg}
 with(fiveMinAvg, plot(interval, intervalAvg, type="l", 
     ylab="Avg Steps per Interval",
     xlab="5 Minute Intervals from 0:00 to 24:00", 
     main = "Avg Steps per Day, per 5 Minute Interval ", 
     sub="Max Avg Steps are at 835 (red line)"))
-
-max5MinuteAvgIndex <- which.max(fiveMinAvg$intervalAvg)
-maxStepsInterval <- fiveMinAvg$interval[[max5MinuteAvgIndex]]
-abline(v=maxStepsInterval, col="red", lty = 2)
+    abline(v=maxStepsInterval, col="red", lty = 2)
 ```
 
-The time series plot give us a feeling for how activity ebbs and flows during the course of the day.  Not surprisingly, the most active time of the day corresponds to morning rush hour.  Interval `r maxStepsInterval` corresponding to the 5 minute interval from 8:35 to 8:40 a.m. is when typically the maximum number of steps are taken. 
+The time series plot give us a feeling for how activity ebbs and flows during the course of the day.  Not surprisingly, the most active time of the day corresponds to morning rush hour.  Interval `r maxStepsInterval` corresponding to the 5 minute interval from 8:35 to 8:40 a.m. is when typically the maximum number of steps are taken.
 
 ## Imputing missing values
-```{r NAcount_imputation, echo=TRUE}
+
+```{r steps_na}
 steps_na <- is.na(activity)
 sum(steps_na)
+```
+
+The original data file contained `r sum(steps_na)` missing values.
+
+To impute the missing values we'll take the mean of the respective 5 minute intervals with a value and replace the NA with the mean for that interval.  The result will be a new file, which we'll call "activity_new", without missing values. 
+
+```{r activity_new}
 activity_new <- transform(activity, steps=ifelse(is.na(activity$steps), 
         fiveMinAvg$intervalAvg, steps)) %>% 
         select(steps, date, interval) 
 ```
-The original data file contained `r sum(steps_na)` missing values - at ~13%, this is a considerable number of "NA's"!
 
+Here is a histogram of the  tottal number of steps taken each day based on "activity_new".
 
-We will take the average of the 5 minute intervals with a value to impute the missing values, and create a new file, "activity_new", without missing values.
-Here is a histogram based on "activity_new":
-
-```{r histogram2, echo=TRUE}
+```{r histogram_activity_new}
 activity_new %>% group_by(date) %>% summarize(sumSteps_new = sum(steps)) -> stepsDay_new
 
 par(mfrow=c(1,1))
@@ -100,7 +126,7 @@ hist(stepsDay_new$sumSteps_new, breaks = 10, xlab="Total Adjusted Number of Step
 
 Now let's look at the summary statistics and whether anything has changed.
 
-```{r summarystats, echo=TRUE}
+```{r summaries_stepsPerDay}
 summary_StepsPerDay_original <- summary(stepsDay)
 print(summary_StepsPerDay_original, type="html")
 summary_StepsPerDay_new <- summary(stepsDay_new)
@@ -111,8 +137,8 @@ Looking at the summaries for both the original and the "new" activity data, we c
 Note, however, the change in 1st and 3rd quartiles and the effect that imputing missing values has had.
 If we examine both histograms side by side, another effect also becomes apparent.
 
-```{r histograms1and2_sideBySide, echo=TRUE}
-par(mfrow=c(1,2), mar = c(5,2,1,1))
+```{r histogram_stepsDay_v_new}
+par(mfrow=c(1,2))
 hist(stepsDay$sumSteps, breaks = 10, xlab="Total Number of Steps per Day", 
      main="Total Steps/Day, with NA's",
      sub="Lines:  Mean=Green;  Median=Black Dashed",
@@ -121,22 +147,25 @@ abline(v = steps_per_Day_Mean, col = "green", lwd =3)
 abline(v = steps_per_Day_Median, col = "black", lwd = 1, lty = 2)
 
 hist(stepsDay_new$sumSteps_new, breaks = 10, xlab="Total Adj. Number of Steps per Day", 
-     main="Total Steps/Day, NA's = Int. Avg",
+     main="Total Steps/Day, NA's = Interval Avg",
      sub="1st & 3rd Qu.: Green = NA's, Red = Imputed",
      ylim=c(0,25))
      abline(v = c(9819,12811),  col = "red")
      abline(v = c(8841, 13294), col = "green")
 ```
 
-In the "new" histogram the 1st and 3rd quartiles have moved closer to the mean, as shown by the shift in lines (green to red; green = 1st & 3rd Quaritles from origninal data and red is 1st and 3rd Quartiles with NA's imputed to average values for hte interval).  
-We see that the mean and median are unchanged, however the "new", imputed data demonstrates a stronger central tendency as can be noted by the substantially higher frequency of 'mean' days.  
-As a result of imputing average values for missing values, there has been a subtle shift in the distribution, as if it has become a touch leptokurtic.  
+As a result of imputing average values for missing values, there has been a subtle shift in the distribution, as if it has become a touch leptokurtic. 
+
+In the "new" histogram the 1st and 3rd quartiles have moved closer to the mean, as shown by the shift in lines (green to red; green = 1st & 3rd Quaritles from origninal data and red is 1st and 3rd Quartiles with NA's imputed to average values for the interval).  
+
+We see that the mean and median are unchanged, however the "new", imputed data demonstrates a stronger central tendency as can be noted by the substantially higher frequency of 'mean' days.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
 Using the "new" dataset, with imputed values, let's examine this question. 
 We'll first create a column indicting whether the data comes from a "Weekeday" or "Weekend".
 
-```{r dayofweekLables, echo=TRUE}
+```{r wkend}
 activity_new$day <- factor(weekdays(activity_new$date), 
     levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
     labels = c("Weekday", "Weekday", "Weekday", "Weekday", "Weekday", "Weekend", "Weekend"))
@@ -144,26 +173,27 @@ activity_new$day <- factor(weekdays(activity_new$date),
 
 Next we'll filter the data by Weekday and Weekend, and take means for each 5 minute interval for both sets of days.
 
-```{r wkdaywkendMeans, echo=TRUE}
+```{r wkendAvg}
 wkendAvg <- activity_new %>% filter(day == "Weekend") %>% group_by(interval) %>% 
     summarize(Avg=mean(by=steps))
 
 wkdayAvg <- activity_new %>% filter(day == "Weekday") %>% group_by(interval) %>% 
-    summarize(Avg=mean(by=steps)) 
+    summarize(Avg=mean(by=steps))
+```
 
+Now we can plot these interval averages and compare.
+
+```{r }
 wkendAvg$dayType <- c("Weekend")
 wkdayAvg$dayType <- c("Weekday")
 
 dayTypeAvg <- bind_rows(wkendAvg, wkdayAvg)
 dayTypeAvg$dayType <- as.factor(dayTypeAvg$dayType)
-```
 
-Now we can plot these interval averages and compare.
-
-```{r TS2wkdaywkendPlot, echo=TRUE}
 ggdayType <- ggplot(dayTypeAvg, aes(x=interval, y=Avg)) +geom_line() +facet_grid(dayType~.)
-ggdayType +labs(x="Interval (in 5 minute increments)", y="Average Number of Steps per Interval",
-                title="Comparison:  Weekday vs Weekend, Average Steps per Interval")
+ggdayType +labs(x="Interval (in 5 minute increments)", 
+      y="Average Number of Steps per Interval", 
+      title="Comparison:  Weekday vs Weekend, Average Steps per Interval")
 ```
 
 Not surprisingly, on weekends we see a slightly later start to the day (weekends are for sleeping in!), a greater and somewhat less regular pattern of activity  on throughout the day, and a later finish to the day.
